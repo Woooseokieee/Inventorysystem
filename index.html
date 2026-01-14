@@ -1,28 +1,35 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Grocery Inventory System</title>
-  <style>
-    body { font-family: Arial; background:#f4f4f4; padding:20px; }
-    table { width:100%; border-collapse:collapse; background:#fff; }
-    th, td { border:1px solid #ccc; padding:8px; text-align:center; }
-    th { background:#eee; }
-    input, button { padding:6px; margin:4px; }
-    .low { background:#ffcccc; }
-  </style>
+<meta charset="UTF-8">
+<title>Grocery Inventory</title>
+<style>
+body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px; }
+h2 { text-align: center; }
+form, .search-container { background: #fff; padding: 15px; margin-bottom: 20px; border-radius: 5px; }
+input, button { padding: 8px; margin: 5px; }
+table { width: 100%; border-collapse: collapse; background: #fff; }
+th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+th { background: #eee; }
+button { cursor: pointer; }
+</style>
 </head>
 <body>
 
-<h2>🛒 Grocery Inventory System</h2>
+<h2>Inventory System</h2>
 
-<h3>Add Product</h3>
-<input id="name" placeholder="Product Name">
-<input id="price" type="number" placeholder="Price">
-<input id="stock" type="number" placeholder="Stock">
-<input id="expiry" type="date">
-<button onclick="addProduct()">Add</button>
+<div class="search-container">
+  <input type="text" id="search" placeholder="Search product..." onkeyup="searchProduct()">
+</div>
 
-<h3>Product List</h3>
+<form onsubmit="event.preventDefault(); addProduct();">
+  <input id="name" placeholder="Product Name" required>
+  <input id="price" type="number" placeholder="Price">
+  <input id="stock" type="number" placeholder="Stock">
+  <input id="expiry" type="date" placeholder="Expiry">
+  <button type="submit">Add</button>
+</form>
+
 <table>
   <thead>
     <tr>
@@ -30,69 +37,96 @@
       <th>Price</th>
       <th>Stock</th>
       <th>Expiry</th>
-      <th>Action</th>
+      <th>Actions</th>
     </tr>
   </thead>
-  <tbody id="list"></tbody>
+  <tbody id="productTable"></tbody>
 </table>
 
 <script>
-const API = "https://grocery-inventory-backend-gvx2.onrender.com/products";
+const API = "https://YOUR-BACKEND.onrender.com/products"; // replace with your Render link
+let products = [];
 
+// Load all products
 function loadProducts() {
   fetch(API)
     .then(res => res.json())
     .then(data => {
-      list.innerHTML = "";
-      data.forEach(p => {
-        list.innerHTML += `
-          <tr class="${p.stock < 5 ? 'low' : ''}">
-            <td>${p.name}</td>
-            <td>₱${p.price}</td>
-            <td>
-              <button onclick="updateStock(${p.id}, ${p.stock - 1})">-</button>
-              ${p.stock}
-              <button onclick="updateStock(${p.id}, ${p.stock + 1})">+</button>
-            </td>
-            <td>${p.expiry}</td>
-            <td>
-              <button onclick="removeProduct(${p.id})">Remove</button>
-            </td>
-          </tr>
-        `;
-      });
+      products = data;
+      displayProducts(products);
     });
 }
 
+// Display products in table
+function displayProducts(list) {
+  const tbody = document.getElementById("productTable");
+  tbody.innerHTML = "";
+  list.forEach(p => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${p.name}</td>
+      <td>${p.price}</td>
+      <td>${p.stock}</td>
+      <td>${p.expiry}</td>
+      <td>
+        <button onclick="updateStock(${p.id})">Update Stock</button>
+        <button onclick="removeProduct(${p.id})">Remove</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// Add product
 function addProduct() {
+  const name = document.getElementById("name").value.trim();
+  const price = document.getElementById("price").value;
+  const stock = document.getElementById("stock").value;
+  const expiry = document.getElementById("expiry").value;
+
+  if (!name) { alert("Product name is required"); return; }
+
   fetch(API, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      name: name.value,
-      price: price.value,
-      stock: stock.value,
-      expiry: expiry.value
-    })
-  }).then(loadProducts);
+    body: JSON.stringify({ name, price, stock, expiry })
+  })
+  .then(res => res.json())
+  .then(() => {
+    loadProducts();
+    document.getElementById("name").value = "";
+    document.getElementById("price").value = "";
+    document.getElementById("stock").value = "";
+    document.getElementById("expiry").value = "";
+  });
 }
 
-function updateStock(id, stock) {
-  if (stock < 0) return;
-  fetch(API + "/" + id, {
+// Update stock
+function updateStock(id) {
+  const newStock = prompt("Enter new stock:");
+  if (newStock === null) return;
+  fetch(`${API}/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ stock })
-  }).then(loadProducts);
+    body: JSON.stringify({ stock: newStock })
+  }).then(() => loadProducts());
 }
 
+// Remove product
 function removeProduct(id) {
-  if (confirm("Remove this product?")) {
-    fetch(API + "/" + id, { method: "DELETE" })
-      .then(loadProducts);
-  }
+  if (!confirm("Are you sure to remove this product?")) return;
+  fetch(`${API}/${id}`, { method: "DELETE" })
+    .then(() => loadProducts());
 }
 
+// Search product
+function searchProduct() {
+  const query = document.getElementById("search").value.toLowerCase();
+  const filtered = products.filter(p => p.name.toLowerCase().includes(query));
+  displayProducts(filtered);
+}
+
+// Initial load
 loadProducts();
 </script>
 

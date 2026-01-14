@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Grocery Inventory System</title>
+  <style>
+    body { font-family: Arial; background:#f4f4f4; padding:20px; }
+    table { width:100%; border-collapse:collapse; background:#fff; }
+    th, td { border:1px solid #ccc; padding:8px; text-align:center; }
+    th { background:#eee; }
+    input, button { padding:6px; margin:4px; }
+    .low { background:#ffcccc; }
+  </style>
+</head>
+<body>
+
+<h2>🛒 Grocery Inventory System</h2>
+
+<h3>Add Product</h3>
+<input id="name" placeholder="Product Name">
+<input id="price" type="number" placeholder="Price">
+<input id="stock" type="number" placeholder="Stock">
+<input id="expiry" type="date">
+<button onclick="addProduct()">Add</button>
+
+<h3>Product List</h3>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Price</th>
+      <th>Stock</th>
+      <th>Expiry</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody id="list"></tbody>
+</table>
+
+<script>
+const API = "http://localhost:3000/products";
+
+function loadProducts() {
+  fetch(API)
+    .then(res => res.json())
+    .then(data => {
+      list.innerHTML = "";
+      data.forEach(p => {
+        list.innerHTML += `
+          <tr class="${p.stock < 5 ? 'low' : ''}">
+            <td>${p.name}</td>
+            <td>₱${p.price}</td>
+            <td>
+              <button onclick="updateStock(${p.id}, ${p.stock - 1})">-</button>
+              ${p.stock}
+              <button onclick="updateStock(${p.id}, ${p.stock + 1})">+</button>
+            </td>
+            <td>${p.expiry}</td>
+            <td>
+              <button onclick="removeProduct(${p.id})">Remove</button>
+            </td>
+          </tr>
+        `;
+      });
+    });
+}
+
+function addProduct() {
+  fetch(API, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: name.value,
+      price: price.value,
+      stock: stock.value,
+      expiry: expiry.value
+    })
+  }).then(loadProducts);
+}
+
+function updateStock(id, stock) {
+  if (stock < 0) return;
+  fetch(API + "/" + id, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ stock })
+  }).then(loadProducts);
+}
+
+function removeProduct(id) {
+  if (confirm("Remove this product?")) {
+    fetch(API + "/" + id, { method: "DELETE" })
+      .then(loadProducts);
+  }
+}
+
+loadProducts();
+</script>
+
+</body>
+</html>

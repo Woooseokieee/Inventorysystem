@@ -2,52 +2,98 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Grocery Inventory</title>
+<title>Advanced Grocery Inventory</title>
+
 <style>
-body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px; }
-h2 { text-align: center; }
-form, .search-container { background: #fff; padding: 15px; margin-bottom: 20px; border-radius: 5px; }
-input, button { padding: 8px; margin: 5px; }
-table { width: 100%; border-collapse: collapse; background: #fff; }
-th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
-th { background: #eee; }
-button { cursor: pointer; }
+body { font-family: Arial; background:#f4f4f4; padding:20px; }
+h2 { text-align:center; }
+
+.box { background:#fff; padding:15px; margin-bottom:20px; border-radius:5px; }
+
+input, button {
+  padding:8px;
+  margin:5px;
+}
+
+table {
+  width:100%;
+  border-collapse:collapse;
+  background:#fff;
+}
+
+th, td {
+  border:1px solid #ccc;
+  padding:8px;
+  text-align:center;
+}
+
+th { background:#eee; }
+
+.out {
+  color:red;
+  font-weight:bold;
+}
 </style>
 </head>
+
 <body>
 
-<h2>Inventory System</h2>
+<h2>Advanced Grocery Inventory System</h2>
 
-<div class="search-container">
-  <input type="text" id="search" placeholder="Search product..." onkeyup="searchProduct()">
+<div class="box">
+  <input id="search" placeholder="Search product..." onkeyup="searchProduct()">
 </div>
 
-<form onsubmit="event.preventDefault(); addProduct();">
-  <input id="name" placeholder="Product Name" required>
+<div class="box">
+  <input id="name" placeholder="Product name">
   <input id="price" type="number" placeholder="Price">
   <input id="stock" type="number" placeholder="Stock">
-  <input id="expiry" type="date" placeholder="Expiry">
-  <button type="submit">Add</button>
-</form>
+  <input id="expiry" type="date">
+  <button onclick="addProduct()">Add Product</button>
+</div>
 
 <table>
-  <thead>
-    <tr>
-      <th>Name</th>
-      <th>Price</th>
-      <th>Stock</th>
-      <th>Expiry</th>
-      <th>Actions</th>
-    </tr>
-  </thead>
-  <tbody id="productTable"></tbody>
+<thead>
+<tr>
+  <th>Name</th>
+  <th>Price</th>
+  <th>Stock</th>
+  <th>Expiry</th>
+  <th>Actions</th>
+</tr>
+</thead>
+<tbody id="productTable"></tbody>
 </table>
 
-<script>
-const API = "https://grocery-inventory-backend-gvx2.onrender.com/products"; // replace with your Render link
-let products = [];
+<h3>📜 History Log</h3>
+<div class="box">
+  <ul id="history"></ul>
+</div>
 
-// Load all products
+<script>
+const API = "https://YOUR-BACKEND.onrender.com/products"; // CHANGE THIS
+let products = [];
+let history = JSON.parse(localStorage.getItem("history")) || [];
+
+/* ---------- HISTORY ---------- */
+function addHistory(text) {
+  const entry = `${new Date().toLocaleString()} — ${text}`;
+  history.unshift(entry);
+  localStorage.setItem("history", JSON.stringify(history));
+  renderHistory();
+}
+
+function renderHistory() {
+  const ul = document.getElementById("history");
+  ul.innerHTML = "";
+  history.forEach(h => {
+    const li = document.createElement("li");
+    li.textContent = h;
+    ul.appendChild(li);
+  });
+}
+
+/* ---------- LOAD PRODUCTS ---------- */
 function loadProducts() {
   fetch(API)
     .then(res => res.json())
@@ -57,76 +103,88 @@ function loadProducts() {
     });
 }
 
-// Display products in table
+/* ---------- DISPLAY ---------- */
 function displayProducts(list) {
   const tbody = document.getElementById("productTable");
   tbody.innerHTML = "";
+
   list.forEach(p => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${p.name}</td>
       <td>${p.price}</td>
-      <td>${p.stock}</td>
-      <td>${p.expiry}</td>
+      <td>${p.stock == 0 ? "<span class='out'>OUT OF STOCK</span>" : p.stock}</td>
+      <td>${p.expiry || "-"}</td>
       <td>
-        <button onclick="updateStock(${p.id})">Update Stock</button>
-        <button onclick="removeProduct(${p.id})">Remove</button>
+        <button onclick="changeStock(${p.id}, ${p.stock}, 1)">+</button>
+        <button onclick="changeStock(${p.id}, ${p.stock}, -1)">−</button>
+        <button onclick="removeProduct(${p.id}, '${p.name}')">Remove</button>
       </td>
     `;
     tbody.appendChild(tr);
   });
 }
 
-// Add product
+/* ---------- ADD PRODUCT ---------- */
 function addProduct() {
   const name = document.getElementById("name").value.trim();
   const price = document.getElementById("price").value;
   const stock = document.getElementById("stock").value;
   const expiry = document.getElementById("expiry").value;
 
-  if (!name) { alert("Product name is required"); return; }
+  if (!name) return alert("Product name required");
 
   fetch(API, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, price, stock, expiry })
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body:JSON.stringify({ name, price, stock, expiry })
   })
-  .then(res => res.json())
   .then(() => {
+    addHistory(`Added product "${name}" with stock ${stock}`);
     loadProducts();
-    document.getElementById("name").value = "";
-    document.getElementById("price").value = "";
-    document.getElementById("stock").value = "";
-    document.getElementById("expiry").value = "";
   });
 }
 
-// Update stock
-function updateStock(id) {
-  const newStock = prompt("Enter new stock:");
-  if (newStock === null) return;
+/* ---------- CHANGE STOCK ---------- */
+function changeStock(id, current, change) {
+  let newStock = current + change;
+  if (newStock < 0) return;
+
   fetch(`${API}/${id}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ stock: newStock })
-  }).then(() => loadProducts());
+    method:"PUT",
+    headers:{ "Content-Type":"application/json" },
+    body:JSON.stringify({ stock:newStock })
+  })
+  .then(() => {
+    addHistory(
+      change > 0
+        ? `Added ${change} stock`
+        : `Subtracted ${Math.abs(change)} stock`
+    );
+    loadProducts();
+  });
 }
 
-// Remove product
-function removeProduct(id) {
-  if (!confirm("Are you sure to remove this product?")) return;
-  fetch(`${API}/${id}`, { method: "DELETE" })
-    .then(() => loadProducts());
+/* ---------- REMOVE PRODUCT ---------- */
+function removeProduct(id, name) {
+  if (!confirm("Remove this product?")) return;
+
+  fetch(`${API}/${id}`, { method:"DELETE" })
+    .then(() => {
+      addHistory(`Removed product "${name}"`);
+      loadProducts();
+    });
 }
 
-// Search product
+/* ---------- SEARCH ---------- */
 function searchProduct() {
-  const query = document.getElementById("search").value.toLowerCase();
-  const filtered = products.filter(p => p.name.toLowerCase().includes(query));
+  const q = document.getElementById("search").value.toLowerCase();
+  const filtered = products.filter(p => p.name.toLowerCase().includes(q));
   displayProducts(filtered);
 }
 
-// Initial load
+/* ---------- INIT ---------- */
+renderHistory();
 loadProducts();
 </script>
 

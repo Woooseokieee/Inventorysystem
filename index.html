@@ -7,32 +7,12 @@
 <style>
 body { font-family: Arial; background:#f4f4f4; padding:20px; }
 h2 { text-align:center; }
-
 .box { background:#fff; padding:15px; margin-bottom:20px; border-radius:5px; }
-
-input, button {
-  padding:8px;
-  margin:5px;
-}
-
-table {
-  width:100%;
-  border-collapse:collapse;
-  background:#fff;
-}
-
-th, td {
-  border:1px solid #ccc;
-  padding:8px;
-  text-align:center;
-}
-
+input, button { padding:8px; margin:5px; }
+table { width:100%; border-collapse:collapse; background:#fff; }
+th, td { border:1px solid #ccc; padding:8px; text-align:center; }
 th { background:#eee; }
-
-.out {
-  color:red;
-  font-weight:bold;
-}
+.out { color:red; font-weight:bold; }
 </style>
 </head>
 
@@ -65,67 +45,50 @@ th { background:#eee; }
 <tbody id="productTable"></tbody>
 </table>
 
-<h3>📜 History Log</h3>
+<h3>📜 History</h3>
 <div class="box">
   <ul id="history"></ul>
 </div>
 
 <script>
-const API = "https://YOUR-BACKEND.onrender.com/products"; // CHANGE THIS
+const API = "https://YOUR-BACKEND.onrender.com/products";
+const HISTORY_API = "https://YOUR-BACKEND.onrender.com/history";
+
 let products = [];
-let history = JSON.parse(localStorage.getItem("history")) || [];
 
-/* ---------- HISTORY ---------- */
-function addHistory(text) {
-  const entry = `${new Date().toLocaleString()} — ${text}`;
-  history.unshift(entry);
-  localStorage.setItem("history", JSON.stringify(history));
-  renderHistory();
-}
-
-function renderHistory() {
-  const ul = document.getElementById("history");
-  ul.innerHTML = "";
-  history.forEach(h => {
-    const li = document.createElement("li");
-    li.textContent = h;
-    ul.appendChild(li);
-  });
-}
-
-/* ---------- LOAD PRODUCTS ---------- */
+// LOAD PRODUCTS
 function loadProducts() {
   fetch(API)
     .then(res => res.json())
     .then(data => {
       products = data;
-      displayProducts(products);
+      displayProducts(data);
     });
 }
 
-/* ---------- DISPLAY ---------- */
+// DISPLAY PRODUCTS
 function displayProducts(list) {
   const tbody = document.getElementById("productTable");
   tbody.innerHTML = "";
 
   list.forEach(p => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${p.name}</td>
-      <td>${p.price}</td>
-      <td>${p.stock == 0 ? "<span class='out'>OUT OF STOCK</span>" : p.stock}</td>
-      <td>${p.expiry || "-"}</td>
-      <td>
-        <button onclick="changeStock(${p.id}, ${p.stock}, 1)">+</button>
-        <button onclick="changeStock(${p.id}, ${p.stock}, -1)">−</button>
-        <button onclick="removeProduct(${p.id}, '${p.name}')">Remove</button>
-      </td>
+    tbody.innerHTML += `
+      <tr>
+        <td>${p.name}</td>
+        <td>${p.price}</td>
+        <td>${p.stock == 0 ? "<span class='out'>OUT OF STOCK</span>" : p.stock}</td>
+        <td>${p.expiry || "-"}</td>
+        <td>
+          <button onclick="changeStock(${p.id}, ${p.stock}, 1, '${p.name}')">+</button>
+          <button onclick="changeStock(${p.id}, ${p.stock}, -1, '${p.name}')">−</button>
+          <button onclick="removeProduct(${p.id}, '${p.name}')">Remove</button>
+        </td>
+      </tr>
     `;
-    tbody.appendChild(tr);
   });
 }
 
-/* ---------- ADD PRODUCT ---------- */
+// ADD PRODUCT
 function addProduct() {
   const name = document.getElementById("name").value.trim();
   const price = document.getElementById("price").value;
@@ -138,54 +101,67 @@ function addProduct() {
     method:"POST",
     headers:{ "Content-Type":"application/json" },
     body:JSON.stringify({ name, price, stock, expiry })
-  })
-  .then(() => {
-    addHistory(`Added product "${name}" with stock ${stock}`);
+  }).then(() => {
     loadProducts();
+    loadHistory();
   });
 }
 
-/* ---------- CHANGE STOCK ---------- */
-function changeStock(id, current, change) {
-  let newStock = current + change;
+// CHANGE STOCK
+function changeStock(id, current, change, name) {
+  const newStock = current + change;
   if (newStock < 0) return;
 
   fetch(`${API}/${id}`, {
     method:"PUT",
     headers:{ "Content-Type":"application/json" },
-    body:JSON.stringify({ stock:newStock })
-  })
-  .then(() => {
-    addHistory(
-      change > 0
-        ? `Added ${change} stock`
-        : `Subtracted ${Math.abs(change)} stock`
-    );
+    body:JSON.stringify({
+      stock:newStock,
+      action: change > 0 ? "Added stock" : "Subtracted stock",
+      quantity: Math.abs(change),
+      name:name
+    })
+  }).then(() => {
     loadProducts();
+    loadHistory();
   });
 }
 
-/* ---------- REMOVE PRODUCT ---------- */
+// REMOVE PRODUCT
 function removeProduct(id, name) {
-  if (!confirm("Remove this product?")) return;
+  if (!confirm("Remove product?")) return;
 
-  fetch(`${API}/${id}`, { method:"DELETE" })
-    .then(() => {
-      addHistory(`Removed product "${name}"`);
-      loadProducts();
+  fetch(`${API}/${id}`, {
+    method:"DELETE",
+    headers:{ "Content-Type":"application/json" },
+    body:JSON.stringify({ name })
+  }).then(() => {
+    loadProducts();
+    loadHistory();
+  });
+}
+
+// SEARCH
+function searchProduct() {
+  const q = document.getElementById("search").value.toLowerCase();
+  displayProducts(products.filter(p => p.name.toLowerCase().includes(q)));
+}
+
+// LOAD HISTORY
+function loadHistory() {
+  fetch(HISTORY_API)
+    .then(res => res.json())
+    .then(data => {
+      const ul = document.getElementById("history");
+      ul.innerHTML = "";
+      data.forEach(h => {
+        ul.innerHTML += `<li>${h.date} — ${h.product}: ${h.action} (${h.quantity})</li>`;
+      });
     });
 }
 
-/* ---------- SEARCH ---------- */
-function searchProduct() {
-  const q = document.getElementById("search").value.toLowerCase();
-  const filtered = products.filter(p => p.name.toLowerCase().includes(q));
-  displayProducts(filtered);
-}
-
-/* ---------- INIT ---------- */
-renderHistory();
 loadProducts();
+loadHistory();
 </script>
 
 </body>
